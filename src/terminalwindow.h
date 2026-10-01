@@ -25,7 +25,7 @@ private slots:
 
 private:
     void buildUi();
-    TerminalSession *currentSession() const;
+    void addSession(bool restorePersistedSettings);
 
     QSettings *m_settings;
     QTabWidget *m_tabs;

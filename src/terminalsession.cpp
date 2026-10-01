@@ -26,9 +26,11 @@
 #include <QTextEdit>
 #include <QVBoxLayout>
 
-TerminalSession::TerminalSession(QSettings *settings, QWidget *parent)
+TerminalSession::TerminalSession(QSettings *settings, bool restorePersistedSettings,
+                                 QWidget *parent)
     : QWidget(parent),
-      m_settings(settings)
+      m_settings(settings),
+      m_restorePersistedSettings(restorePersistedSettings)
 {
     buildUi();
     loadSettings();
@@ -542,6 +544,10 @@ void TerminalSession::scheduleReconnect()
 
 void TerminalSession::loadSettings()
 {
+    loadMacros();
+    if (!m_restorePersistedSettings)
+        return;
+
     m_port->setCurrentText(m_settings->value("port").toString());
     m_baud->setCurrentText(m_settings->value("baud", QStringLiteral("9600")).toString());
     m_dataBits->setCurrentText(m_settings->value("dataBits", QStringLiteral("8")).toString());
@@ -560,11 +566,13 @@ void TerminalSession::loadSettings()
     const QColor color = m_settings->value("textColor").value<QColor>();
     if (color.isValid())
         m_output->setTextColor(color);
-    loadMacros();
 }
 
 void TerminalSession::saveSettings()
 {
+    if (!m_restorePersistedSettings)
+        return;
+
     m_settings->setValue("port", m_port->currentText());
     m_settings->setValue("baud", m_baud->currentText());
     m_settings->setValue("dataBits", m_dataBits->currentText());

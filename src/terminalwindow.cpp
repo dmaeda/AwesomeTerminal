@@ -19,7 +19,7 @@ TerminalWindow::TerminalWindow(QWidget *parent)
     setWindowTitle(tr("AwesomeTerminal"));
     resize(1000, 700);
     buildUi();
-    newTab();
+    addSession(/*restorePersistedSettings=*/true);
 }
 
 void TerminalWindow::buildUi()
@@ -49,14 +49,14 @@ void TerminalWindow::buildUi()
     quitAction->setShortcut(QKeySequence::Quit);
 }
 
-TerminalSession *TerminalWindow::currentSession() const
-{
-    return qobject_cast<TerminalSession *>(m_tabs->currentWidget());
-}
-
 void TerminalWindow::newTab()
 {
-    auto *session = new TerminalSession(m_settings, m_tabs);
+    addSession(/*restorePersistedSettings=*/false);
+}
+
+void TerminalWindow::addSession(bool restorePersistedSettings)
+{
+    auto *session = new TerminalSession(m_settings, restorePersistedSettings, m_tabs);
     const int index = m_tabs->addTab(session, session->tabLabel());
     connect(session, &TerminalSession::labelChanged, this, [this, session](const QString &label) {
         const int tabIndex = m_tabs->indexOf(session);
@@ -72,6 +72,7 @@ void TerminalWindow::closeTab(int index)
     if (!session)
         return;
     session->disconnectAndClose();
+    session->saveSettings();
     m_tabs->removeTab(index);
     session->deleteLater();
 }

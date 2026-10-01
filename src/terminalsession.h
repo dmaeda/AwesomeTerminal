@@ -20,7 +20,14 @@ class TerminalSession : public QWidget
     Q_OBJECT
 
 public:
-    explicit TerminalSession(QSettings *settings, QWidget *parent = nullptr);
+    // When restorePersistedSettings is true, the session's connection and
+    // display options are initialized from the shared settings object (and
+    // saveSettings() will persist them back). Additional tabs created during
+    // the session pass false so that each new connection starts from sane
+    // defaults instead of silently inheriting another tab's in-progress
+    // settings; the macro library is always shared regardless of this flag.
+    explicit TerminalSession(QSettings *settings, bool restorePersistedSettings,
+                             QWidget *parent = nullptr);
 
     // Returns a short, human readable label describing this session,
     // suitable for display on its tab (for example the port name or
@@ -33,7 +40,9 @@ public:
     void disconnectAndClose();
 
     // Persists the current UI state (connection options, display
-    // preferences, fonts, colors) to the shared settings object.
+    // preferences, fonts, colors) to the shared settings object. Does
+    // nothing unless this session was created with restorePersistedSettings
+    // set to true.
     void saveSettings();
 
 signals:
@@ -64,6 +73,7 @@ private:
     void emitLabelChanged();
 
     QSettings *m_settings;
+    bool m_restorePersistedSettings;
     QSerialPort m_serial;
     QTimer m_reconnectTimer;
     quint64 m_txBytes = 0;
