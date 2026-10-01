@@ -2,3 +2,6 @@
 /build/
 /build-*/
 /cmake-build-*/
+
+# Machine-specific CMake configuration
+/CMakeUserPresets.json
