@@ -19,7 +19,7 @@ TerminalWindow::TerminalWindow(QWidget *parent)
     setWindowTitle(tr("AwesomeTerminal"));
     resize(1000, 700);
     buildUi();
-    addSession(/*restorePersistedSettings=*/true);
+    addSession(/*restoreOnLoad=*/true);
 }
 
 void TerminalWindow::buildUi()
@@ -51,12 +51,19 @@ void TerminalWindow::buildUi()
 
 void TerminalWindow::newTab()
 {
-    addSession(/*restorePersistedSettings=*/false);
+    addSession(/*restoreOnLoad=*/false);
 }
 
-void TerminalWindow::addSession(bool restorePersistedSettings)
+void TerminalWindow::addSession(bool restoreOnLoad)
 {
-    auto *session = new TerminalSession(m_settings, restorePersistedSettings, m_tabs);
+    // Only the very first tab created at startup loads its connection and
+    // display options from m_settings; additional tabs start from built-in
+    // defaults so that opening a new tab never leaks another tab's
+    // in-progress state. For saving, TerminalWindow always persists the
+    // settings of whichever session is currently at tab index 0, so settings
+    // persistence survives that original tab being closed (see closeTab()
+    // and closeEvent()).
+    auto *session = new TerminalSession(m_settings, restoreOnLoad, m_tabs);
     const int index = m_tabs->addTab(session, session->tabLabel());
     connect(session, &TerminalSession::labelChanged, this, [this, session](const QString &label) {
         const int tabIndex = m_tabs->indexOf(session);
@@ -72,9 +79,14 @@ void TerminalWindow::closeTab(int index)
     if (!session)
         return;
     session->disconnectAndClose();
-    session->saveSettings();
+    if (index == 0)
+        session->saveSettings();
     m_tabs->removeTab(index);
     session->deleteLater();
+
+    // Always keep at least one tab open so the window remains usable.
+    if (m_tabs->count() == 0)
+        addSession(/*restoreOnLoad=*/false);
 }
 
 void TerminalWindow::closeEvent(QCloseEvent *event)
@@ -82,7 +94,8 @@ void TerminalWindow::closeEvent(QCloseEvent *event)
     for (int i = 0; i < m_tabs->count(); ++i) {
         if (auto *session = qobject_cast<TerminalSession *>(m_tabs->widget(i))) {
             session->disconnectAndClose();
-            session->saveSettings();
+            if (i == 0)
+                session->saveSettings();
         }
     }
     event->accept();

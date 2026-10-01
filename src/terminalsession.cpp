@@ -26,11 +26,11 @@
 #include <QTextEdit>
 #include <QVBoxLayout>
 
-TerminalSession::TerminalSession(QSettings *settings, bool restorePersistedSettings,
+TerminalSession::TerminalSession(QSettings *settings, bool restoreOnLoad,
                                  QWidget *parent)
     : QWidget(parent),
       m_settings(settings),
-      m_restorePersistedSettings(restorePersistedSettings)
+      m_restoreOnLoad(restoreOnLoad)
 {
     buildUi();
     loadSettings();
@@ -159,6 +159,7 @@ void TerminalSession::buildUi()
             m_serial.close();
             m_connectButton->setText(tr("Connect"));
             updateStatus(tr("Disconnected"));
+            emitLabelChanged();
         } else {
             connectSerial();
         }
@@ -545,7 +546,7 @@ void TerminalSession::scheduleReconnect()
 void TerminalSession::loadSettings()
 {
     loadMacros();
-    if (!m_restorePersistedSettings)
+    if (!m_restoreOnLoad)
         return;
 
     m_port->setCurrentText(m_settings->value("port").toString());
@@ -570,9 +571,6 @@ void TerminalSession::loadSettings()
 
 void TerminalSession::saveSettings()
 {
-    if (!m_restorePersistedSettings)
-        return;
-
     m_settings->setValue("port", m_port->currentText());
     m_settings->setValue("baud", m_baud->currentText());
     m_settings->setValue("dataBits", m_dataBits->currentText());
