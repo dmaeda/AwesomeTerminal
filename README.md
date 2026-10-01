@@ -49,7 +49,11 @@ Run `build/awesome_terminal` on Linux. On Windows, run
 such as Visual Studio.
 
 The GUI supports serial port configuration, connecting and disconnecting,
-ASCII/hex send and receive, line endings, local echo, timestamps, log saving,
-file transfer, saved macros, automatic reconnection, and persistent settings.
-Use the controls above the terminal to configure the connection and display.
-Ports can be selected from the list or entered manually.
+ASCII/hex send and receive, line endings, local echo, timestamps, manual and
+automatic per-tab RX/TX logging, file transfer, saved macros, automatic
+reconnection, and persistent settings. Use the controls above the terminal to
+configure the connection and display. Automatic logging can be enabled
+independently in each tab, with configurable tags and timestamp format. Its
+file pattern supports `{tab}` for the tab's unique number; if omitted, `-tabN`
+is added to the filename to keep tab logs separate. Ports can be selected from
+the list or entered manually.
