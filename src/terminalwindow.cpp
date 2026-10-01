@@ -56,6 +56,12 @@ void TerminalWindow::newTab()
 
 void TerminalWindow::addSession(bool restorePersistedSettings)
 {
+    // Only one TerminalSession (normally the very first tab created at
+    // startup) is ever constructed with restorePersistedSettings set to
+    // true; it is the only session whose connection/display options are
+    // loaded from and saved back to m_settings. All other tabs intentionally
+    // start from built-in defaults so that opening a new tab never leaks
+    // another tab's in-progress settings.
     auto *session = new TerminalSession(m_settings, restorePersistedSettings, m_tabs);
     const int index = m_tabs->addTab(session, session->tabLabel());
     connect(session, &TerminalSession::labelChanged, this, [this, session](const QString &label) {
@@ -75,6 +81,10 @@ void TerminalWindow::closeTab(int index)
     session->saveSettings();
     m_tabs->removeTab(index);
     session->deleteLater();
+
+    // Always keep at least one tab open so the window remains usable.
+    if (m_tabs->count() == 0)
+        addSession(/*restorePersistedSettings=*/false);
 }
 
 void TerminalWindow::closeEvent(QCloseEvent *event)
