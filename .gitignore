@@ -1,0 +1,7 @@
+# Generated CMake build directories
+/build/
+/build-*/
+/cmake-build-*/
+
+# Machine-specific CMake configuration
+/CMakeUserPresets.json
