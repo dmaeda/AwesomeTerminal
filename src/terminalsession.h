@@ -20,13 +20,16 @@ class TerminalSession : public QWidget
     Q_OBJECT
 
 public:
-    // When restorePersistedSettings is true, the session's connection and
-    // display options are initialized from the shared settings object (and
-    // saveSettings() will persist them back). Additional tabs created during
-    // the session pass false so that each new connection starts from sane
-    // defaults instead of silently inheriting another tab's in-progress
-    // settings; the macro library is always shared regardless of this flag.
-    explicit TerminalSession(QSettings *settings, bool restorePersistedSettings,
+    // When restoreOnLoad is true, the session's connection and display
+    // options are initialized from the shared settings object at
+    // construction time. Additional tabs created during the session pass
+    // false so that each new connection starts from sane defaults instead of
+    // silently inheriting another tab's in-progress settings. The macro
+    // library is always loaded/shared regardless of this flag. Saving is not
+    // gated by this flag: callers decide which single session's state should
+    // be persisted (see TerminalWindow, which always persists the tab at
+    // index 0) so that settings persistence survives that tab being closed.
+    explicit TerminalSession(QSettings *settings, bool restoreOnLoad,
                              QWidget *parent = nullptr);
 
     // Returns a short, human readable label describing this session,
@@ -40,9 +43,7 @@ public:
     void disconnectAndClose();
 
     // Persists the current UI state (connection options, display
-    // preferences, fonts, colors) to the shared settings object. Does
-    // nothing unless this session was created with restorePersistedSettings
-    // set to true.
+    // preferences, fonts, colors) to the shared settings object.
     void saveSettings();
 
 signals:
@@ -73,7 +74,7 @@ private:
     void emitLabelChanged();
 
     QSettings *m_settings;
-    bool m_restorePersistedSettings;
+    bool m_restoreOnLoad;
     QSerialPort m_serial;
     QTimer m_reconnectTimer;
     quint64 m_txBytes = 0;
