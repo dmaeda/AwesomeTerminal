@@ -11,6 +11,8 @@ qt_add_executable(awesome_terminal
     src/main.cpp
     src/terminalwindow.cpp
     src/terminalwindow.h
+    src/terminalsession.cpp
+    src/terminalsession.h
 )
 
 target_link_libraries(awesome_terminal PRIVATE Qt6::Widgets Qt6::SerialPort)
