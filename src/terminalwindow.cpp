@@ -21,6 +21,7 @@
 #include <QPushButton>
 #include <QSerialPortInfo>
 #include <QSettings>
+#include <QStatusBar>
 #include <QStringList>
 #include <QTextCursor>
 #include <QTextDocument>
