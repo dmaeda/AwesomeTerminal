@@ -26,11 +26,16 @@
 #include <QTextEdit>
 #include <QVBoxLayout>
 
+namespace {
+int nextSessionId = 1;
+}
+
 TerminalSession::TerminalSession(QSettings *settings, bool restoreOnLoad,
                                  QWidget *parent)
     : QWidget(parent),
       m_settings(settings),
-      m_restoreOnLoad(restoreOnLoad)
+      m_restoreOnLoad(restoreOnLoad),
+      m_sessionId(nextSessionId++)
 {
     buildUi();
     loadSettings();
@@ -112,6 +117,33 @@ void TerminalSession::buildUi()
     displayTools->addStretch();
     layout->addLayout(displayTools);
 
+    auto *loggingBox = new QGroupBox(tr("Automatic logging"), this);
+    auto *loggingGrid = new QGridLayout(loggingBox);
+    m_autoLog = new QCheckBox(tr("Enable"), loggingBox);
+    m_logFilePath = new QLineEdit(QStringLiteral("terminal-{tab}.log"), loggingBox);
+    m_logFilePath->setToolTip(
+        tr("Each tab writes to its own file. Use {tab} to insert this tab's unique number; "
+           "otherwise -tabN is added before the extension."));
+    auto *logFileButton = new QPushButton(tr("Browse…"), loggingBox);
+    m_rxTag = new QLineEdit(QStringLiteral("[RX]"), loggingBox);
+    m_txTag = new QLineEdit(QStringLiteral("[TX]"), loggingBox);
+    m_logTimestamps = new QCheckBox(tr("Include timestamps"), loggingBox);
+    m_logTimestamps->setChecked(true);
+    m_logTimestampFormat = new QLineEdit(QStringLiteral("yyyy-MM-dd HH:mm:ss.zzz"),
+                                         loggingBox);
+    loggingGrid->addWidget(new QLabel(tr("Log file pattern"), loggingBox), 0, 0);
+    loggingGrid->addWidget(m_logFilePath, 0, 1, 1, 4);
+    loggingGrid->addWidget(logFileButton, 0, 5);
+    loggingGrid->addWidget(m_autoLog, 0, 6);
+    loggingGrid->addWidget(new QLabel(tr("RX tag"), loggingBox), 1, 0);
+    loggingGrid->addWidget(m_rxTag, 1, 1);
+    loggingGrid->addWidget(new QLabel(tr("TX tag"), loggingBox), 1, 2);
+    loggingGrid->addWidget(m_txTag, 1, 3);
+    loggingGrid->addWidget(m_logTimestamps, 1, 4, 1, 3);
+    loggingGrid->addWidget(new QLabel(tr("Timestamp format"), loggingBox), 2, 0);
+    loggingGrid->addWidget(m_logTimestampFormat, 2, 1, 1, 6);
+    layout->addWidget(loggingBox);
+
     m_output = new QTextEdit(this);
     m_output->setReadOnly(true);
     m_output->setLineWrapMode(QTextEdit::NoWrap);
@@ -168,6 +200,13 @@ void TerminalSession::buildUi()
     connect(sendButton, &QPushButton::clicked, this, &TerminalSession::sendInput);
     connect(sendFileButton, &QPushButton::clicked, this, &TerminalSession::sendFile);
     connect(saveLogButton, &QPushButton::clicked, this, &TerminalSession::saveLog);
+    connect(logFileButton, &QPushButton::clicked, this, [this] {
+        const QString path = QFileDialog::getSaveFileName(
+            this, tr("Choose automatic log file"), m_logFilePath->text(),
+            tr("Text files (*.txt *.log);;All files (*)"));
+        if (!path.isEmpty())
+            m_logFilePath->setText(path);
+    });
     connect(clearButton, &QPushButton::clicked, m_output, &QTextEdit::clear);
     connect(fontButton, &QPushButton::clicked, this, [this] { chooseFont(); });
     connect(colorButton, &QPushButton::clicked, this, [this] { chooseColor(); });
@@ -307,6 +346,7 @@ void TerminalSession::receiveData()
 {
     const QByteArray data = m_serial.readAll();
     m_rxBytes += static_cast<quint64>(data.size());
+    writeAutomaticLog(m_rxTag->text(), data);
 
     QString text = formatData(data, m_displayMode->currentText() == tr("Hex"));
     if (m_timestamps->isChecked())
@@ -365,6 +405,7 @@ void TerminalSession::sendInput()
         return;
     }
     m_txBytes += static_cast<quint64>(written);
+    writeAutomaticLog(m_txTag->text(), data.left(static_cast<int>(written)));
     if (m_localEcho->isChecked()) {
         QString echo = formatData(data, m_displayMode->currentText() == tr("Hex"));
         m_output->moveCursor(QTextCursor::End);
@@ -399,6 +440,7 @@ void TerminalSession::sendFile()
         return;
     }
     m_txBytes += static_cast<quint64>(written);
+    writeAutomaticLog(m_txTag->text(), data.left(static_cast<int>(written)));
     updateStatus(m_connectionState);
 }
 
@@ -415,6 +457,60 @@ void TerminalSession::saveLog()
         return;
     }
     file.write(m_output->toPlainText().toUtf8());
+}
+
+void TerminalSession::writeAutomaticLog(const QString &tag, const QByteArray &data)
+{
+    if (!m_autoLog->isChecked() || data.isEmpty())
+        return;
+
+    QString path = m_logFilePath->text().trimmed();
+    if (path.isEmpty())
+        return;
+    if (path.contains(QStringLiteral("{tab}"))) {
+        path.replace(QStringLiteral("{tab}"), QString::number(m_sessionId));
+    } else {
+        const int separator = qMax(path.lastIndexOf(QLatin1Char('/')),
+                                   path.lastIndexOf(QLatin1Char('\\')));
+        const int extension = path.lastIndexOf(QLatin1Char('.'));
+        const QString tabSuffix = QStringLiteral("-tab%1").arg(m_sessionId);
+        if (extension > separator)
+            path.insert(extension, tabSuffix);
+        else
+            path.append(tabSuffix);
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        if (!m_autoLogErrorShown) {
+            QMessageBox::warning(this, tr("Unable to write automatic log"),
+                                 file.errorString());
+            m_autoLogErrorShown = true;
+        }
+        return;
+    }
+
+    QString line;
+    if (m_logTimestamps->isChecked() && !m_logTimestampFormat->text().isEmpty()) {
+        line.append(QLatin1Char('['));
+        line.append(QDateTime::currentDateTime().toString(m_logTimestampFormat->text()));
+        line.append(QStringLiteral("] "));
+    }
+    line.append(tag);
+    line.append(QLatin1Char(' '));
+    line.append(formatData(data, m_displayMode->currentText() == tr("Hex")));
+    line.append(QLatin1Char('\n'));
+
+    const QByteArray encodedLine = line.toUtf8();
+    if (file.write(encodedLine) != encodedLine.size()) {
+        if (!m_autoLogErrorShown) {
+            QMessageBox::warning(this, tr("Unable to write automatic log"),
+                                 file.errorString());
+            m_autoLogErrorShown = true;
+        }
+    } else {
+        m_autoLogErrorShown = false;
+    }
 }
 
 bool TerminalSession::encodeInput(const QString &text, QByteArray *data, QString *error) const
@@ -561,6 +657,14 @@ void TerminalSession::loadSettings()
     m_timestamps->setChecked(m_settings->value("timestamps", false).toBool());
     m_localEcho->setChecked(m_settings->value("localEcho", false).toBool());
     m_autoReconnect->setChecked(m_settings->value("autoReconnect", false).toBool());
+    m_autoLog->setChecked(m_settings->value("autoLog", false).toBool());
+    m_logFilePath->setText(m_settings->value(
+        "autoLogFilePath", QStringLiteral("terminal-{tab}.log")).toString());
+    m_rxTag->setText(m_settings->value("autoLogRxTag", QStringLiteral("[RX]")).toString());
+    m_txTag->setText(m_settings->value("autoLogTxTag", QStringLiteral("[TX]")).toString());
+    m_logTimestamps->setChecked(m_settings->value("autoLogTimestamps", true).toBool());
+    m_logTimestampFormat->setText(m_settings->value(
+        "autoLogTimestampFormat", QStringLiteral("yyyy-MM-dd HH:mm:ss.zzz")).toString());
     const QFont font = m_settings->value("font").value<QFont>();
     if (font != QFont())
         m_output->setFont(font);
@@ -583,6 +687,12 @@ void TerminalSession::saveSettings()
     m_settings->setValue("timestamps", m_timestamps->isChecked());
     m_settings->setValue("localEcho", m_localEcho->isChecked());
     m_settings->setValue("autoReconnect", m_autoReconnect->isChecked());
+    m_settings->setValue("autoLog", m_autoLog->isChecked());
+    m_settings->setValue("autoLogFilePath", m_logFilePath->text());
+    m_settings->setValue("autoLogRxTag", m_rxTag->text());
+    m_settings->setValue("autoLogTxTag", m_txTag->text());
+    m_settings->setValue("autoLogTimestamps", m_logTimestamps->isChecked());
+    m_settings->setValue("autoLogTimestampFormat", m_logTimestampFormat->text());
     m_settings->setValue("font", m_output->font());
     m_settings->setValue("textColor", m_output->textColor());
 }

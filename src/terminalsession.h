@@ -69,18 +69,21 @@ private:
     void scheduleReconnect();
     void chooseFont();
     void chooseColor();
+    void writeAutomaticLog(const QString &tag, const QByteArray &data);
     void loadSettings();
     void loadMacros();
     void emitLabelChanged();
 
     QSettings *m_settings;
     bool m_restoreOnLoad;
+    int m_sessionId;
     QSerialPort m_serial;
     QTimer m_reconnectTimer;
     quint64 m_txBytes = 0;
     quint64 m_rxBytes = 0;
     bool m_disconnectRequested = false;
     bool m_reconnecting = false;
+    bool m_autoLogErrorShown = false;
     QString m_connectionState;
 
     QComboBox *m_port;
@@ -96,10 +99,16 @@ private:
     QLineEdit *m_input;
     QLineEdit *m_macroName;
     QLineEdit *m_macroText;
+    QLineEdit *m_logFilePath;
+    QLineEdit *m_rxTag;
+    QLineEdit *m_txTag;
+    QLineEdit *m_logTimestampFormat;
     QTextEdit *m_output;
     QLabel *m_status;
     QCheckBox *m_timestamps;
     QCheckBox *m_localEcho;
     QCheckBox *m_autoReconnect;
+    QCheckBox *m_autoLog;
+    QCheckBox *m_logTimestamps;
     QPushButton *m_connectButton;
 };
